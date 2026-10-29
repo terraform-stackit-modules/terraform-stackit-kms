@@ -23,6 +23,32 @@ It is part of the [terraform-stackit-modules](https://github.com/terraform-stack
     └── workflows/           # CI/CD pipelines
 ```
 
+
+### This module: kms
+
+Composite module for STACKIT **Key Management Service** (keyring + keys + wrapping keys).
+
+**Sub-modules**
+- `modules/keyring` — `stackit_kms_keyring` (toggled by `create_keyring` via `count`).
+- `modules/key` — `stackit_kms_key` (`for_each` over `keys`).
+- `modules/wrapping-key` — `stackit_kms_wrapping_key` (`for_each` over `wrapping_keys`).
+
+**Key inputs** — `project_id` (req), `region` (optional, provider default_region used otherwise),
+`create_keyring`/`keyring_id`, `keyring_name`/`keyring_description`,
+`keys` (map: `{display_name, algorithm, purpose, protection, description?, access_scope?, import_only?}`),
+`wrapping_keys` (map: same minus `import_only`).
+
+**Outputs** — `keyring_id`, `key_ids`, `wrapping_key_ids`, `wrapping_key_public_keys`.
+
+**Gotchas**
+- Keys are NOT instantly destroyed on destroy — scheduled for deletion (grace period, recoverable).
+  Do not expect a re-apply after destroy to recreate with the same key_id.
+- KMS is REGIONAL: `region` optional at resource level, falls back to the provider default_region.
+- Enum values: key purpose `symmetric_encrypt_decrypt|asymmetric_encrypt_decrypt|message_authentication_code|asymmetric_sign_verify`;
+  wrapping purpose `wrap_symmetric_key|wrap_asymmetric_key`; access_scope `PUBLIC|SNA`; protection e.g. `software`.
+- No provider-side enum validation on algorithm/purpose/protection — invalid values fail at the API only.
+- secretmanager module's `kms_key` input is the natural consumer of this module's outputs.
+
 ## Coding conventions
 
 - Terraform version: `>= 1.3`
