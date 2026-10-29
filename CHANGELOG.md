@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.0 (2026-10-29)
+
+### Features
+
+* Initial STACKIT KMS module (keyrings, keys and wrapping keys) ([d64ac25](https://github.com/terraform-stackit-modules/terraform-stackit-kms/commit/d64ac25b98d65d4cfd9c86f8a0c3fdb403571276))
+
 ## [1.0.1](https://github.com/terraform-stackit-modules/terraform-repo-template/compare/v1.0.0...v1.0.1) (2026-09-09)
 
 ### Bug Fixes
