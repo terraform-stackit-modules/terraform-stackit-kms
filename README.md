@@ -1,40 +1,65 @@
 <!-- BEGIN_TF_DOCS -->
-# Terraform STACKIT module template
+# Terraform STACKIT KMS module
 
-Repository template used to seed new Terraform module repositories for the [terraform-stackit-modules](https://github.com/terraform-stackit-modules) organization. Usage of this template is allowed per included license.
+Terraform module which provisions [STACKIT Key Management Service](https://registry.terraform.io/providers/stackitcloud/stackit/latest/docs/resources/kms_key) keyrings, keys and wrapping keys on [STACKIT](https://www.stackit.de/en/).
 
-[![License](https://img.shields.io/github/license/terraform-stackit-modules/terraform-repo-template)](./LICENSE)
+[![Terraform Registry](https://img.shields.io/github/v/release/terraform-stackit-modules/terraform-stackit-kms?label=registry&color=7B42BC&logo=terraform&logoColor=white&style=flat)](https://registry.terraform.io/modules/terraform-stackit-modules/kms/stackit/latest)
+[![OpenTofu Registry](https://img.shields.io/badge/OpenTofu-Registry-FF643B?style=flat&logo=opentofu&logoColor=white)](https://search.opentofu.org/module/terraform-stackit-modules/kms/stackit/latest)
+[![License](https://img.shields.io/github/license/terraform-stackit-modules/terraform-stackit-kms)](./LICENSE)
 
 This repository is not from the official STACKIT organization.
 
-## Creating a module from this template
+## Usage
 
-Create a new repository from this template, then follow the checklist in
-[`TEMPLATE_USAGE.md`](./TEMPLATE\_USAGE.md). In short:
+```hcl
+module "kms" {
+  source  = "terraform-stackit-modules/kms/stackit"
+  version = ">= 1.0.0"
 
-1. Rename the repository to `terraform-stackit-<service>` and update the GitHub description.
-2. Replace all occurrences of `MODULE_NAME` with the actual module name.
-3. Update `AGENTS.md`, the `examples/basic` example and `.header.md` with the module-specific
-   content.
-4. Configure the `SEMANTIC_RELEASE_TOKEN` secret in the repository settings.
+  project_id       = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  keyring_name     = "app-keyring"
+  keyring_description = "Keys for the app workload"
 
-The `TEMPLATE ONLY` section below and `TEMPLATE_USAGE.md` can be removed automatically by the
-`.github/workflows/template-cleanup.yml` workflow on the first push.
+  keys = {
+    encryption = {
+      display_name = "app-encryption-key"
+      algorithm    = "aes_256_gcm"
+      purpose      = "symmetric_encrypt_decrypt"
+      protection   = "software"
+    }
+  }
+}
+```
 
-<!-- TEMPLATE ONLY - Remove this section when using this template for a new module -->
-## Acknowledgements
+## Composite module
 
-This template is inspired by two reference implementations in the Terraform ecosystem:
+- `modules/keyring` — the `stackit_kms_keyring` (toggled by `create_keyring`).
+- `modules/key` — `stackit_kms_key` entries (`for_each` over `keys`).
+- `modules/wrapping-key` — `stackit_kms_wrapping_key` entries (`for_each` over `wrapping_keys`).
 
-- [terraform-aws-modules](https://github.com/terraform-aws-modules) by [Anton Babenko](https://github.com/antonbabenko) — the community standard for Terraform modules on AWS
-- [terraform-repo-template](https://github.com/aws-ia/terraform-repo-template) by [AWS Integration & Automation](https://github.com/aws-ia) — the AWS official modules organization
-<!-- END TEMPLATE ONLY -->
+The root wires them together and, when `create_keyring = false`, manages keys inside an existing
+keyring provided via `keyring_id`.
+
+## Notes
+
+- **Keys are not instantly destroyed** by `terraform destroy`: they are scheduled for deletion via
+  the API and leave the Terraform state — they can be recovered within the grace period.
+- `region` is optional; when not set, the provider `default_region` is used (regional service).
+- Key purposes: `symmetric_encrypt_decrypt`, `asymmetric_encrypt_decrypt`, `message_authentication_code`,
+  `asymmetric_sign_verify`; wrapping key purposes: `wrap_symmetric_key`, `wrap_asymmetric_key`.
+- `access_scope` defaults to `PUBLIC`; `SNA` restricts access to a STACKIT network area.
+- Wrapping keys expose their `public_key` (output `wrapping_key_public_keys`) so clients can wrap
+  key material before importing it.
+- The STACKIT Secrets Manager module accepts a KMS key for secret encryption.
+
+## Examples
+
+- [`basic`](./examples/basic) — minimal, self-contained example (requires only `project_id`).
 
 <!-- markdownlint-disable MD001 -->
 ### Contributing
 
-PRs to this template will be considered but are not guaranteed to be included. Consider creating
-an issue to discuss a feature you want to include before taking the time to create a PR.
+This module follows the conventions of the `terraform-stackit-modules` organization. Before opening a PR:
 
 1. [Install pre-commit](https://pre-commit.com/#install) and run `pre-commit install`.
 2. Install the required tools: [tflint](https://github.com/terraform-linters/tflint), [tfsec](https://aquasecurity.github.io/tfsec/), [terraform-docs](https://github.com/terraform-docs/terraform-docs), [golang](https://go.dev/doc/install), [coreutils](https://www.gnu.org/software/coreutils/).
@@ -51,27 +76,39 @@ an issue to discuss a feature you want to include before taking the time to crea
 
 ## Providers
 
-| Name | Version |
-| ---- | ------- |
-| <a name="provider_stackit"></a> [stackit](#provider\_stackit) | >= 0.113.0 |
+No providers.
 
 ## Modules
 
-No modules.
+| Name | Source | Version |
+| ---- | ------ | ------- |
+| <a name="module_key"></a> [key](#module\_key) | ./modules/key | n/a |
+| <a name="module_keyring"></a> [keyring](#module\_keyring) | ./modules/keyring | n/a |
+| <a name="module_wrapping_key"></a> [wrapping\_key](#module\_wrapping\_key) | ./modules/wrapping-key | n/a |
 
 ## Resources
 
-| Name | Type |
-| ---- | ---- |
-| [stackit_network.this](https://registry.terraform.io/providers/stackitcloud/stackit/latest/docs/resources/network) | resource |
+No resources.
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The STACKIT project ID. | `string` | n/a | yes |
+| <a name="input_project_id"></a> [project\_id](#input\_project\_id) | STACKIT project ID to which the keyring, keys and wrapping keys are associated. | `string` | n/a | yes |
+| <a name="input_create_keyring"></a> [create\_keyring](#input\_create\_keyring) | Whether to create the KMS keyring. Set to false to manage keys inside an existing keyring provided via `keyring_id`. | `bool` | `true` | no |
+| <a name="input_keyring_description"></a> [keyring\_description](#input\_keyring\_description) | Optional user-chosen description to distinguish multiple keyrings. | `string` | `null` | no |
+| <a name="input_keyring_id"></a> [keyring\_id](#input\_keyring\_id) | ID of an existing KMS keyring. Used when `create_keyring` is false. | `string` | `null` | no |
+| <a name="input_keyring_name"></a> [keyring\_name](#input\_keyring\_name) | Display name of the keyring. | `string` | `null` | no |
+| <a name="input_keys"></a> [keys](#input\_keys) | Map of KMS keys to create, keyed by a stable identifier. Each value:<br/>  - `display_name` : display name to distinguish multiple keys.<br/>  - `algorithm`    : encryption algorithm (`aes_256_gcm`, `rsa_2048_oaep_sha256`, `rsa_3072_oaep_sha256`, `rsa_4096_oaep_sha256`, `rsa_4096_oaep_sha512`, `hmac_sha256`, `hmac_sha384`, `hmac_sha512`, `ecdsa_p256_sha256`, `ecdsa_p384_sha384`, `ecdsa_p521_sha512`).<br/>  - `purpose`      : purpose of the key (`symmetric_encrypt_decrypt`, `asymmetric_encrypt_decrypt`, `message_authentication_code`, `asymmetric_sign_verify`).<br/>  - `protection`   : underlying system protecting the key material (e.g. `software`).<br/>  - `description`  : optional user-chosen description.<br/>  - `access_scope` : optional access scope (`PUBLIC` default, or `SNA`).<br/>  - `import_only`  : optional, whether versions can only be imported.<br/>NOTE: keys are not destroyed instantly on `terraform destroy` — they are scheduled for deletion (grace period). | <pre>map(object({<br/>    display_name = string<br/>    algorithm    = string<br/>    purpose      = string<br/>    protection   = string<br/>    description  = optional(string)<br/>    access_scope = optional(string)<br/>    import_only  = optional(bool)<br/>  }))</pre> | `{}` | no |
+| <a name="input_region"></a> [region](#input\_region) | The resource region. If not defined, the provider region is used. | `string` | `null` | no |
+| <a name="input_wrapping_keys"></a> [wrapping\_keys](#input\_wrapping\_keys) | Map of KMS wrapping keys to create (used to wrap keys for import), keyed by a stable identifier. Each value:<br/>  - `display_name` : display name to distinguish multiple wrapping keys.<br/>  - `algorithm`    : wrapping algorithm (`rsa_2048_oaep_sha256`, `rsa_3072_oaep_sha256`, `rsa_4096_oaep_sha256`, `rsa_4096_oaep_sha512`, `rsa_2048_oaep_sha256_aes_256_key_wrap`, `rsa_3072_oaep_sha256_aes_256_key_wrap`, `rsa_4096_oaep_sha256_aes_256_key_wrap`, `rsa_4096_oaep_sha512_aes_256_key_wrap`).<br/>  - `purpose`      : purpose of the wrapping key (`wrap_symmetric_key`, `wrap_asymmetric_key`).<br/>  - `protection`   : underlying system protecting the key material (e.g. `software`).<br/>  - `description`  : optional user-chosen description.<br/>  - `access_scope` : optional access scope (`PUBLIC` default, or `SNA`). | <pre>map(object({<br/>    display_name = string<br/>    algorithm    = string<br/>    purpose      = string<br/>    protection   = string<br/>    description  = optional(string)<br/>    access_scope = optional(string)<br/>  }))</pre> | `{}` | no |
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+| ---- | ----------- |
+| <a name="output_key_ids"></a> [key\_ids](#output\_key\_ids) | Map of key identifier to key ID. |
+| <a name="output_keyring_id"></a> [keyring\_id](#output\_keyring\_id) | The ID of the KMS keyring (created, or the provided `keyring_id` when `create_keyring` is false). |
+| <a name="output_wrapping_key_ids"></a> [wrapping\_key\_ids](#output\_wrapping\_key\_ids) | Map of wrapping key identifier to wrapping key ID. |
+| <a name="output_wrapping_key_public_keys"></a> [wrapping\_key\_public\_keys](#output\_wrapping\_key\_public\_keys) | Map of wrapping key identifier to its public key (used client-side to wrap keys for import). |
 <!-- END_TF_DOCS -->
